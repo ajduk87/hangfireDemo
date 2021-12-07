@@ -7,6 +7,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Data.SqlClient;
 
 namespace hangfire_webapi.Controllers
 {
@@ -50,56 +51,115 @@ namespace hangfire_webapi.Controllers
 
         [HttpPost]
         [Route("[action]")]
-        public IActionResult ConvertToExcel(string csvFileName)
+        public IActionResult ConvertToTxtRequest(string csvFileName)
         { 
             string csvFileDirectory = @"C:\csv\";            
 
-            string csvFilePath = $"{csvFileDirectory}{csvFileName}";
-            Order order = MakeOrder(csvFilePath);
+            string csvFilePath = $"{csvFileDirectory}{csvFileName}.csv";
+            Order order = new Order(csvFilePath, csvFileName);
 
-            WriteToTxtFile(order, csvFileName);
+            SaveInDatabase(order);
 
-            return Ok($"File {csvFileName} is converted to txt file");
+
+            return Ok($"File {csvFileName}.csv is processed.");
         }
 
-        public Order MakeOrder(string csvFilePath) 
+        [HttpPost]
+        [Route("[action]")]
+        public IActionResult ConvertToTxtRequestConfirmation(string csvFileName)
         {
-            Order order = new Order();
-            List<OrderItem> orderItems = new List<OrderItem>();
+            string csvFileDirectory = @"C:\csv\";
 
-            List<string> csvFileContent = System.IO.File.ReadAllLines(csvFilePath).ToList();
-            foreach (string csvFileContentRow in csvFileContent)
+            string csvFilePath = $"{csvFileDirectory}{csvFileName}.csv";
+            Order order = new Order(csvFilePath, csvFileName);
+
+            ConfirmProcessingInDatabase(order);
+
+
+            return Ok($"File {csvFileName}.csv is confirmed.");
+        }
+
+        public void ConfirmProcessingInDatabase(Order order)
+        {
+            int id = 0;
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
+
+            SqlConnection connection = null;
+
+            using (connection = new SqlConnection(connectionString))
             {
-                List<string> orderItemParts = csvFileContentRow.Split(',').ToList();
-                OrderItem orderItem = new OrderItem
+                connection.Open();
+
+                string selectOrderByFilename = $"SELECT *" +
+                                     $"FROM [OrdersDb].[dbo].[Orders]" +
+                                     $"WHERE [Name] = '{order.FileName}'";
+
+                SqlCommand sql_cmnd = new SqlCommand(selectOrderByFilename, connection);
+                SqlDataReader reader = sql_cmnd.ExecuteReader();
+
+                if (reader.Read()) 
                 {
-                    Country = orderItemParts[1],
-                    UnitByPiece = Convert.ToDouble(orderItemParts[1]),
-                    Pieces = Convert.ToInt32(orderItemParts[2])
-                };
+                    id = Convert.ToInt32(reader["id"].ToString());
+                }
 
-                orderItems.Add(orderItem);
+                reader.Close();
+
+                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrderJobs]" +
+                                                    $"SET [IsConfirmed] = 1" +
+                                                    $"WHERE [OrderId] = {id}";
+
+                sql_cmnd = new SqlCommand(updateOrderJobByOrderId, connection);
+                sql_cmnd.ExecuteNonQuery();
+
+                connection.Close();
             }
-
-            order.OrderItems = orderItems;
-
-            return order;
         }
 
-        public void WriteToTxtFile(Order order, string fileName) 
+        public void SaveInDatabase(Order order) 
         {
-            string txtFileDirectory = @"C:\txt\";
-            string txtFilePath = $"{txtFileDirectory}{fileName}";
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
 
-            List<string> txtLines = new List<string>();
-            foreach (OrderItem item in order.OrderItems)
+            SqlConnection connection = null;
+
+            using (connection = new SqlConnection(connectionString))
             {
-                string txtLine = $"[ {item.Country} | {item.UnitByPiece} | {item.Pieces}";
-                txtLines.Add(txtLine);
-            }
+                connection.Open();
 
-            System.IO.File.WriteAllLines(txtFilePath, txtLines);
+                string insertOrder = $"INSERT INTO [dbo].[Orders]" +
+                                     $"([Id]" +
+                                     $",[Filepath]" +
+                                     $",[Filename])" +
+                                     $"VALUES(" +
+                                     $"{order.Id}," +
+                                     $"'{order.FilePath}'," +
+                                     $"'{order.FileName}')";
+
+                SqlCommand sql_cmnd = new SqlCommand(insertOrder, connection);
+                sql_cmnd.ExecuteNonQuery();
+
+                string insertOrderJob = $"INSERT INTO [dbo].[OrderJobs]" +
+                                        $"([Id]" +
+                                        $",[OrderId]" +
+                                        $",[IsConfirmed]" +
+                                        $",[IsCompleted]" +
+                                        $",[CreatedAt])" +
+                                        $"VALUES" +
+                                        $"({order.Id}," +
+                                        $"{order.Id}," +
+                                        $"0," +
+                                        $"0," +
+                                        $"'{DateTime.Now}')";
+
+                sql_cmnd = new SqlCommand(insertOrderJob, connection);
+                sql_cmnd.ExecuteNonQuery();
+
+                connection.Close();
+            }
         }
+
+      
+
+     
 
         public void DatabaseUpdated() 
         {

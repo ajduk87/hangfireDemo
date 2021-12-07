@@ -11,5 +11,10 @@ namespace hangfire_webapi.Models
         public string Country { get; set; }
         public double UnitByPiece { get; set; }
         public int Pieces { get; set; }
+
+        public OrderItem() 
+        {
+
+        }
     }
 }
