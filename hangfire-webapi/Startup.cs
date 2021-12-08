@@ -84,8 +84,6 @@ namespace hangfire_webapi
                 connection.Close();
             }
 
-
-
             
 
             foreach (string fileForProcessing in filesForProcessing) 

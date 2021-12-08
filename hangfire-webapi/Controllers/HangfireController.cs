@@ -127,8 +127,8 @@ namespace hangfire_webapi.Controllers
 
                 string insertOrder = $"INSERT INTO [dbo].[Orders]" +
                                      $"([Id]" +
-                                     $",[Filepath]" +
-                                     $",[Filename])" +
+                                     $",[Path]" +
+                                     $",[Name])" +
                                      $"VALUES(" +
                                      $"{order.Id}," +
                                      $"'{order.FilePath}'," +
