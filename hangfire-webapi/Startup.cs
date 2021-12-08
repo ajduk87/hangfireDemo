@@ -71,7 +71,7 @@ namespace hangfire_webapi
                 string selectFilesForProcessing = $"SELECT Name, Path " +
                                                   $"FROM Orders " +
                                                   $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
-                                                  $"WHERE IsConfirmed = 1 AND IsCompleted = 0;";
+                                                  $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND CreatedAt = '{DateTime.Now.AddDays(-1).Date}';";
 
                 SqlCommand sql_cmnd = new SqlCommand(selectFilesForProcessing, connection);
                 SqlDataReader reader = sql_cmnd.ExecuteReader();
