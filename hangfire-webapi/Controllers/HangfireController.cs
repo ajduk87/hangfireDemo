@@ -148,7 +148,7 @@ namespace hangfire_webapi.Controllers
                                         $"{order.Id}," +
                                         $"0," +
                                         $"0," +
-                                        $"'{DateTime.Now}')";
+                                        $"'{DateTime.Now.Date}')";
 
                 sql_cmnd = new SqlCommand(insertOrderJob, connection);
                 sql_cmnd.ExecuteNonQuery();
