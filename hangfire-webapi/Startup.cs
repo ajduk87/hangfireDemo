@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +20,8 @@ namespace hangfire_webapi
 {
     public class Startup
     {
+        private long? timeForExecutionInSeconds = 80 * 60;
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -71,12 +75,12 @@ namespace hangfire_webapi
 
                 //string selectFilesForProcessing = $"SELECT Name, Path " +
                 //                                  $"FROM Orders " +
-                //                                  $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
+                //                                  $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
                 //                                  $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND CreatedAt = '{DateTime.Now.AddDays(-1).Date}';";
 
                 string selectFilesForProcessing = $"SELECT Name " +
                                                   $"FROM Orders " +
-                                                  $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId ";
+                                                  $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId ";
 
                 SqlCommand sql_cmnd = new SqlCommand(selectFilesForProcessing, connection);
                 SqlDataReader reader = sql_cmnd.ExecuteReader();
@@ -101,8 +105,63 @@ namespace hangfire_webapi
             //}
         }
 
-        public void WriteToTxtFile(string fileName)
+        private bool IsEnoughTimeForExecution(string fileName) 
         {
+            bool result = false;
+
+
+            string csvFileDirectory = @"C:\csv\";
+            string csvFilePath = $"{csvFileDirectory}{fileName}.csv";
+            FileInfo fileInfo = new FileInfo(csvFilePath);
+            long fileSize = fileInfo.Length/1024/1024;
+
+            double processedtSizeInMB = 0;
+            double MBProcessedPerSecond = 0;
+            long timeSpent = 0;
+            double predictedTimeInSeconds = 0;
+
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
+
+            SqlConnection connection = null;
+
+            using (connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                string timeSpentQuery = $"SELECT sum([ExecutionTimeInSeconds])" +
+                                        $"FROM [OrdersDb].[dbo].[OrdersJobs]" +
+                                        $"where IsCompleted = 1 AND CreatedAt = '{DateTime.Now.Date}'";
+
+                SqlCommand sql_cmnd = new SqlCommand(timeSpentQuery, connection);
+                timeSpent = (long)sql_cmnd.ExecuteScalar();
+
+                string countFilesForProcessing = $"SELECT sum(AttachmentSizeInMB) " +
+                              $"FROM Orders " +
+                              $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
+                              $"WHERE IsConfirmed = 1 AND IsCompleted = 1 AND AttachmentSizeInMB > 0 AND ExecutionTimeInSeconds > 0 AND CreatedAt = '{DateTime.Now.Date}';";
+
+
+                sql_cmnd = new SqlCommand(countFilesForProcessing, connection);
+                processedtSizeInMB = (double)sql_cmnd.ExecuteScalar();
+
+                MBProcessedPerSecond = processedtSizeInMB / timeSpent;
+                predictedTimeInSeconds = fileSize / MBProcessedPerSecond;
+
+                result = (timeForExecutionInSeconds - timeSpent >= predictedTimeInSeconds) ? true
+                                                                                           : false;              
+
+
+                connection.Close();
+            }
+
+           
+
+            return result;
+        }
+
+        private bool IsConfirmed(string fileName) 
+        {
+            bool result = false;
 
             string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
 
@@ -115,7 +174,7 @@ namespace hangfire_webapi
 
                 string countFilesForProcessing = $"SELECT COUNT(*) " +
                                               $"FROM Orders " +
-                                              $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
+                                              $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
                                               $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND Name = '{fileName}';";
 
 
@@ -124,18 +183,46 @@ namespace hangfire_webapi
 
                 connection.Close();
 
-                if (count == 0) 
+                if (count != 0)
                 {
-                    return;
+                    result = true;
                 }
             }
+
+            return result;
+        }
+
+        private void UpdateAttachment(string filePath) 
+        {
+        }
+
+
+        public void WriteToTxtFile(string fileName)
+        {
+            var timer = new Stopwatch();
+            timer.Start();
+
             string message = $"Start procesing {fileName}{System.Environment.NewLine}";
             System.IO.File.AppendAllText(@"C:\txt\log.txt", message);
 
             string csvFileDirectory = @"C:\csv\";
             string csvFilePath = $"{csvFileDirectory}{fileName}.csv";
 
-            Thread.Sleep(10 * 1000);
+            UpdateAttachment(csvFilePath);
+
+            if (!IsConfirmed(fileName))
+            {
+                return;
+            }
+
+            if (!IsEnoughTimeForExecution(fileName)) 
+            {
+                return;
+            }
+           
+           
+
+            //Thread.Sleep(10 * 1000);
 
             List<string> csvLines = System.IO.File.ReadAllLines(csvFilePath).ToList();
             List<OrderItem> orderItems = new List<OrderItem>();
@@ -174,7 +261,60 @@ namespace hangfire_webapi
 
             message = $"End procesing {fileName}{System.Environment.NewLine}";
             System.IO.File.AppendAllText(@"C:\txt\log.txt", message);
+
+            timer.Stop();
+
+            TimeSpan timeTaken = timer.Elapsed;
+            string timeExecution = $"Time taken: {timeTaken.ToString(@"m\:ss\.fff")}{System.Environment.NewLine}" ;
+
+            FileInfo csvAttachmentFile = new FileInfo(csvFilePath);
+            long csvAttachmentSize = csvAttachmentFile.Length;
+            string csvAttachmentSizeMessage = $"Attachment size: {csvAttachmentSize/1024/1024} MB.{System.Environment.NewLine}";
+
+
+            System.IO.File.AppendAllText(@"C:\txt\log.txt", timeExecution);
+            System.IO.File.AppendAllText(@"C:\txt\log.txt", csvAttachmentSizeMessage);
+
+            UpdateExecutionTime(fileName, (long)timeTaken.TotalSeconds);
         }
+
+        private void UpdateExecutionTime(string fileName,long executionTimeInSeconds) 
+        {
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
+
+            SqlConnection connection = null;
+            using (connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+              
+                int id = 0;
+                string selectFileForExecuteTimeUpdate = $"SELECT Orders.Id " +
+                                                $"FROM Orders " +
+                                                $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
+                                                $"WHERE  Name = '{fileName}'";
+
+
+                SqlCommand sql_cmnd = new SqlCommand(selectFileForExecuteTimeUpdate, connection);
+                SqlDataReader reader = sql_cmnd.ExecuteReader();
+
+                if (reader.Read())
+                {
+                    id = Convert.ToInt32(reader["Id"].ToString());
+                }
+
+                reader.Close();
+
+                string updateExecutionTimeQuery = $"UPDATE [dbo].[OrdersJobs] " +
+                                                    $"SET [ExecutionTimeInSeconds] = {executionTimeInSeconds} " +
+                                                    $"WHERE Id = {id} ";
+
+                sql_cmnd = new SqlCommand(updateExecutionTimeQuery, connection);
+                sql_cmnd.ExecuteNonQuery();
+
+                connection.Close();
+            }
+         }
 
         private void CsvFileProcessingSetToCompleted(string fileName) 
         {
@@ -201,7 +341,7 @@ namespace hangfire_webapi
 
                 reader.Close();
 
-                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrderJobs] " +
+                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrdersJobs] " +
                                                     $"SET [IsCompleted] = 1 " +
                                                     $"WHERE [OrderId] = {id}";
 

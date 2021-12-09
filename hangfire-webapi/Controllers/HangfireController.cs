@@ -104,7 +104,7 @@ namespace hangfire_webapi.Controllers
 
                 reader.Close();
 
-                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrderJobs]" +
+                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrdersJobs]" +
                                                     $"SET [IsConfirmed] = 1" +
                                                     $"WHERE [OrderId] = {id}";
 
@@ -117,6 +117,8 @@ namespace hangfire_webapi.Controllers
 
         public void SaveInDatabase(Order order) 
         {
+            FileInfo fileInfo = new FileInfo(order.FilePath);
+
             string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
 
             SqlConnection connection = null;
@@ -125,33 +127,56 @@ namespace hangfire_webapi.Controllers
             {
                 connection.Open();
 
-                string insertOrder = $"INSERT INTO [dbo].[Orders]" +
-                                     $"([Id]" +
-                                     $",[Path]" +
-                                     $",[Name])" +
-                                     $"VALUES(" +
-                                     $"{order.Id}," +
-                                     $"'{order.FilePath}'," +
-                                     $"'{order.FileName}')";
+                SqlTransaction transaction;
 
-                SqlCommand sql_cmnd = new SqlCommand(insertOrder, connection);
-                sql_cmnd.ExecuteNonQuery();
 
-                string insertOrderJob = $"INSERT INTO [dbo].[OrderJobs]" +
-                                        $"([Id]" +
-                                        $",[OrderId]" +
-                                        $",[IsConfirmed]" +
-                                        $",[IsCompleted]" +
-                                        $",[CreatedAt])" +
-                                        $"VALUES" +
-                                        $"({order.Id}," +
-                                        $"{order.Id}," +
-                                        $"0," +
-                                        $"0," +
-                                        $"'{DateTime.Now.Date}')";
 
-                sql_cmnd = new SqlCommand(insertOrderJob, connection);
-                sql_cmnd.ExecuteNonQuery();
+                // Start a local transaction.
+                transaction = connection.BeginTransaction("Ordertransaction");
+                try
+                {               
+
+                    string insertOrder = $"INSERT INTO [dbo].[Orders]" +
+                                         $"([Id]" +
+                                         $",[Path]" +
+                                         $",[Name])" +
+                                         $"VALUES(" +
+                                         $"{order.Id}," +
+                                         $"'{order.FilePath}'," +
+                                         $"'{order.FileName}')";
+
+                    SqlCommand sql_cmnd = new SqlCommand(insertOrder, connection);
+                    sql_cmnd.Transaction = transaction;
+                    sql_cmnd.ExecuteNonQuery();
+
+                    string insertOrderJob = $"INSERT INTO [dbo].[OrdersJobs]" +
+                                            $"([Id]" +
+                                            $",[OrderId]" +
+                                            $",[IsConfirmed]" +
+                                            $",[IsCompleted]" +
+                                            $",[CreatedAt]" +
+                                            $",[AttachmentSizeInMB]" +
+                                            $",[ExecutionTimeInSeconds])" +
+                                            $"VALUES" +
+                                            $"({order.Id}," +
+                                            $"{order.Id}," +
+                                            $"0," +
+                                            $"0," +
+                                            $"'{DateTime.Now.Date}'," +
+                                            $"{fileInfo.Length / 1024 / 1024}," +
+                                            $"0)";
+
+                    sql_cmnd = new SqlCommand(insertOrderJob, connection);
+                    sql_cmnd.Transaction = transaction;
+                    sql_cmnd.ExecuteNonQuery();
+
+                    transaction.Commit();
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    throw ex;
+                }
 
                 connection.Close();
             }
