@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace hangfire_webapi
@@ -52,7 +53,7 @@ namespace hangfire_webapi
                 endpoints.MapControllers();
             });
 
-            RecurringJob.AddOrUpdate(() => DailyFileGeneratorOrchestration(), "*/2 * * * *");
+            RecurringJob.AddOrUpdate(() => DailyFileGeneratorOrchestration(), "*/10 * * * *");
         }
 
         public void DailyFileGeneratorOrchestration()
@@ -68,10 +69,14 @@ namespace hangfire_webapi
             {
                 connection.Open();
 
-                string selectFilesForProcessing = $"SELECT Name, Path " +
+                //string selectFilesForProcessing = $"SELECT Name, Path " +
+                //                                  $"FROM Orders " +
+                //                                  $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
+                //                                  $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND CreatedAt = '{DateTime.Now.AddDays(-1).Date}';";
+
+                string selectFilesForProcessing = $"SELECT Name " +
                                                   $"FROM Orders " +
-                                                  $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
-                                                  $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND CreatedAt = '{DateTime.Now.AddDays(-1).Date}';";
+                                                  $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId ";
 
                 SqlCommand sql_cmnd = new SqlCommand(selectFilesForProcessing, connection);
                 SqlDataReader reader = sql_cmnd.ExecuteReader();
@@ -84,18 +89,53 @@ namespace hangfire_webapi
                 connection.Close();
             }
 
-            
+            string jobId1 = BackgroundJob.Enqueue(() => WriteToTxtFile(filesForProcessing[0]));
+            string jobid2 = BackgroundJob.ContinueJobWith(jobId1, () => WriteToTxtFile(filesForProcessing[1]));
+            string jobId3 = BackgroundJob.ContinueJobWith(jobid2, () => WriteToTxtFile(filesForProcessing[2]));
+            string jobId4 = BackgroundJob.ContinueJobWith(jobId3, () => WriteToTxtFile(filesForProcessing[3]));
+            string jobId5 = BackgroundJob.ContinueJobWith(jobId4, () => WriteToTxtFile(filesForProcessing[4]));
 
-            foreach (string fileForProcessing in filesForProcessing) 
-            {
-                string jobId = BackgroundJob.Enqueue(() => WriteToTxtFile(fileForProcessing));
-            }
+            //foreach (var fileForProcessing in filesForProcessing)
+            //{
+            //    string jobId1 = BackgroundJob.Enqueue(() => WriteToTxtFile(fileForProcessing));
+            //}
         }
 
         public void WriteToTxtFile(string fileName)
         {
+
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
+
+            SqlConnection connection = null;
+
+            using (connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+
+                string countFilesForProcessing = $"SELECT COUNT(*) " +
+                                              $"FROM Orders " +
+                                              $"INNER JOIN OrderJobs ON Orders.Id = OrderJobs.OrderId " +
+                                              $"WHERE IsConfirmed = 1 AND IsCompleted = 0 AND Name = '{fileName}';";
+
+
+                SqlCommand sql_cmnd = new SqlCommand(countFilesForProcessing, connection);
+                int count = (int)sql_cmnd.ExecuteScalar();
+
+                connection.Close();
+
+                if (count == 0) 
+                {
+                    return;
+                }
+            }
+            string message = $"Start procesing {fileName}{System.Environment.NewLine}";
+            System.IO.File.AppendAllText(@"C:\txt\log.txt", message);
+
             string csvFileDirectory = @"C:\csv\";
             string csvFilePath = $"{csvFileDirectory}{fileName}.csv";
+
+            Thread.Sleep(10 * 1000);
 
             List<string> csvLines = System.IO.File.ReadAllLines(csvFilePath).ToList();
             List<OrderItem> orderItems = new List<OrderItem>();
@@ -131,6 +171,9 @@ namespace hangfire_webapi
             {
                 CsvFileProcessingSetToCompleted(fileName);
             }
+
+            message = $"End procesing {fileName}{System.Environment.NewLine}";
+            System.IO.File.AppendAllText(@"C:\txt\log.txt", message);
         }
 
         private void CsvFileProcessingSetToCompleted(string fileName) 
