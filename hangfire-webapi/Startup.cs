@@ -192,10 +192,46 @@ namespace hangfire_webapi
             return result;
         }
 
-        private void UpdateAttachment(string filePath) 
+        private void UpdateAttachment(string filePath, string fileName)
         {
-        }
+            FileInfo fileInfo = new FileInfo(filePath);
+            double attachmentSize = fileInfo.Length/1024/1024;
 
+            string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
+            SqlConnection connection = null;
+
+            using (connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                int id = 0;
+                string selectFileForExecuteTimeUpdate = $"SELECT Orders.Id " +
+                                                $"FROM Orders " +
+                                                $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
+                                                $"WHERE  Name = '{fileName}'";
+
+
+                SqlCommand sql_cmnd = new SqlCommand(selectFileForExecuteTimeUpdate, connection);
+                SqlDataReader reader = sql_cmnd.ExecuteReader();
+
+                if (reader.Read())
+                {
+                    id = Convert.ToInt32(reader["Id"].ToString());
+                }
+
+                reader.Close();
+
+
+                string updateExecutionTimeQuery = $"UPDATE [dbo].[OrdersJobs] " +
+                                               $"SET [AttachmentSizeInMB] = {attachmentSize} " +
+                                               $"WHERE Id = {id} ";
+
+                sql_cmnd = new SqlCommand(updateExecutionTimeQuery, connection);
+                sql_cmnd.ExecuteNonQuery();
+
+                connection.Close();
+            }
+        }
 
         public void WriteToTxtFile(string fileName)
         {
@@ -208,7 +244,7 @@ namespace hangfire_webapi
             string csvFileDirectory = @"C:\csv\";
             string csvFilePath = $"{csvFileDirectory}{fileName}.csv";
 
-            UpdateAttachment(csvFilePath);
+            UpdateAttachment(csvFilePath, fileName);
 
             if (!IsConfirmed(fileName))
             {
