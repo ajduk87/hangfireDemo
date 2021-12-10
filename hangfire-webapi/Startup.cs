@@ -128,11 +128,22 @@ namespace hangfire_webapi
             {
                 connection.Open();
 
+                string countOfCompletedJobsQuery = $"SELECT count(*) " +
+                                              $"FROM [OrdersDb].[dbo].[OrdersJobs] " +
+                                              $"where IsCompleted = 1 ";
+
+                SqlCommand sql_cmnd = new SqlCommand(countOfCompletedJobsQuery, connection);
+                long countOfCompleted = (int)sql_cmnd.ExecuteScalar();
+                if (countOfCompleted == 0) 
+                {
+                    return true;
+                }
+
                 string timeSpentQuery = $"SELECT sum([ExecutionTimeInSeconds])" +
                                         $"FROM [OrdersDb].[dbo].[OrdersJobs]" +
                                         $"where IsCompleted = 1 AND CreatedAt = '{DateTime.Now.Date}'";
 
-                SqlCommand sql_cmnd = new SqlCommand(timeSpentQuery, connection);
+                sql_cmnd = new SqlCommand(timeSpentQuery, connection);
                 timeSpent = (long)sql_cmnd.ExecuteScalar();
 
                 string countFilesForProcessing = $"SELECT sum(AttachmentSizeInMB) " +
