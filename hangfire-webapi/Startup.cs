@@ -113,10 +113,10 @@ namespace hangfire_webapi
             string csvFileDirectory = @"C:\csv\";
             string csvFilePath = $"{csvFileDirectory}{fileName}.csv";
             FileInfo fileInfo = new FileInfo(csvFilePath);
-            long fileSize = fileInfo.Length/1024/1024;
+            long fileSize = fileInfo.Length;
 
-            double processedtSizeInMB = 0;
-            double MBProcessedPerSecond = 0;
+            long processedSizeInBytes = 0;
+            double BytesProcessedPerSecond = 0;
             long timeSpent = 0;
             double predictedTimeInSeconds = 0;
 
@@ -146,17 +146,17 @@ namespace hangfire_webapi
                 sql_cmnd = new SqlCommand(timeSpentQuery, connection);
                 timeSpent = (long)sql_cmnd.ExecuteScalar();
 
-                string countFilesForProcessing = $"SELECT sum(AttachmentSizeInMB) " +
+                string countFilesForProcessing = $"SELECT sum(AttachmentSizeInBytes) " +
                               $"FROM Orders " +
                               $"INNER JOIN OrdersJobs ON Orders.Id = OrdersJobs.OrderId " +
-                              $"WHERE IsConfirmed = 1 AND IsCompleted = 1 AND AttachmentSizeInMB > 0 AND ExecutionTimeInSeconds > 0 AND CreatedAt = '{DateTime.Now.Date}';";
+                              $"WHERE IsConfirmed = 1 AND IsCompleted = 1 AND AttachmentSizeInBytes > 0 AND ExecutionTimeInSeconds > 0 AND CreatedAt = '{DateTime.Now.Date}';";
 
 
                 sql_cmnd = new SqlCommand(countFilesForProcessing, connection);
-                processedtSizeInMB = (double)sql_cmnd.ExecuteScalar();
+                processedSizeInBytes = (long)sql_cmnd.ExecuteScalar();
 
-                MBProcessedPerSecond = processedtSizeInMB / timeSpent;
-                predictedTimeInSeconds = fileSize / MBProcessedPerSecond;
+                BytesProcessedPerSecond = processedSizeInBytes / timeSpent;
+                predictedTimeInSeconds = fileSize / BytesProcessedPerSecond;
 
                 result = (timeForExecutionInSeconds - timeSpent >= predictedTimeInSeconds) ? true
                                                                                            : false;              
@@ -206,7 +206,7 @@ namespace hangfire_webapi
         private void UpdateAttachment(string filePath, string fileName)
         {
             FileInfo fileInfo = new FileInfo(filePath);
-            double attachmentSize = fileInfo.Length/1024/1024;
+            double attachmentSize = fileInfo.Length;
 
             string connectionString = "Password=eoffice;Persist Security Info=False;User ID=eoffice; Initial Catalog=OrdersDb; Data Source=srb-content-tst.src.si";
             SqlConnection connection = null;
@@ -233,11 +233,11 @@ namespace hangfire_webapi
                 reader.Close();
 
 
-                string updateExecutionTimeQuery = $"UPDATE [dbo].[OrdersJobs] " +
-                                               $"SET [AttachmentSizeInMB] = {attachmentSize} " +
+                string updateAttachmentSizeInBytesQuery = $"UPDATE [dbo].[OrdersJobs] " +
+                                               $"SET [AttachmentSizeInBytes] = {attachmentSize} " +
                                                $"WHERE Id = {id} ";
 
-                sql_cmnd = new SqlCommand(updateExecutionTimeQuery, connection);
+                sql_cmnd = new SqlCommand(updateAttachmentSizeInBytesQuery, connection);
                 sql_cmnd.ExecuteNonQuery();
 
                 connection.Close();
@@ -262,12 +262,12 @@ namespace hangfire_webapi
                 return;
             }
 
-            if (!IsEnoughTimeForExecution(fileName)) 
+            if (!IsEnoughTimeForExecution(fileName))
             {
                 return;
             }
-           
-           
+
+
 
             //Thread.Sleep(10 * 1000);
 
@@ -316,7 +316,7 @@ namespace hangfire_webapi
 
             FileInfo csvAttachmentFile = new FileInfo(csvFilePath);
             long csvAttachmentSize = csvAttachmentFile.Length;
-            string csvAttachmentSizeMessage = $"Attachment size: {csvAttachmentSize/1024/1024} MB.{System.Environment.NewLine}";
+            string csvAttachmentSizeMessage = $"Attachment size: {csvAttachmentSize} bytes.{System.Environment.NewLine}";
 
 
             System.IO.File.AppendAllText(@"C:\txt\log.txt", timeExecution);

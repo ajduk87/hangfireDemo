@@ -155,7 +155,7 @@ namespace hangfire_webapi.Controllers
                                             $",[IsConfirmed]" +
                                             $",[IsCompleted]" +
                                             $",[CreatedAt]" +
-                                            $",[AttachmentSizeInMB]" +
+                                            $",[AttachmentSizeInBytes]" +
                                             $",[ExecutionTimeInSeconds])" +
                                             $"VALUES" +
                                             $"({order.Id}," +
@@ -163,7 +163,7 @@ namespace hangfire_webapi.Controllers
                                             $"0," +
                                             $"0," +
                                             $"'{DateTime.Now.Date}'," +
-                                            $"{fileInfo.Length / 1024 / 1024}," +
+                                            $"{fileInfo.Length}," +
                                             $"0)";
 
                     sql_cmnd = new SqlCommand(insertOrderJob, connection);
