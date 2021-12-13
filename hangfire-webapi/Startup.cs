@@ -99,10 +99,6 @@ namespace hangfire_webapi
             string jobId4 = BackgroundJob.ContinueJobWith(jobId3, () => WriteToTxtFile(filesForProcessing[3]));
             string jobId5 = BackgroundJob.ContinueJobWith(jobId4, () => WriteToTxtFile(filesForProcessing[4]));
 
-            //foreach (var fileForProcessing in filesForProcessing)
-            //{
-            //    string jobId1 = BackgroundJob.Enqueue(() => WriteToTxtFile(fileForProcessing));
-            //}
         }
 
         private bool IsEnoughTimeForExecution(string fileName) 

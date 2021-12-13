@@ -6,9 +6,37 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="appsettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="appsettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Hangfire" Version="1.7.27" />
     <PackageReference Include="Microsoft.Office.Interop.Excel" Version="15.0.4795.1000" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Sql\Class.cs" />
+    <Resource Include="Sql\Queries.resx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Sql\Queries.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Queries.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Sql\Queries.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Queries.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
 
 

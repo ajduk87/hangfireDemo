@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using hangfire_webapi.Models;
+using hangfire_webapi.Sql;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
@@ -134,41 +135,33 @@ namespace hangfire_webapi.Controllers
                 // Start a local transaction.
                 transaction = connection.BeginTransaction("Ordertransaction");
                 try
-                {               
+                {
+         
+                    string insertOrder = Queries.InsertOrder;
 
-                    string insertOrder = $"INSERT INTO [dbo].[Orders]" +
-                                         $"([Id]" +
-                                         $",[Path]" +
-                                         $",[Name])" +
-                                         $"VALUES(" +
-                                         $"{order.Id}," +
-                                         $"'{order.FilePath}'," +
-                                         $"'{order.FileName}')";
+                    SqlCommand insertOrderCommand = new SqlCommand(insertOrder, connection);
+                    insertOrderCommand.Parameters.Add(new SqlParameter("Id", order.Id));
+                    insertOrderCommand.Parameters.Add(new SqlParameter("Path", order.FilePath));
+                    insertOrderCommand.Parameters.Add(new SqlParameter("Name", order.FileName));
 
-                    SqlCommand sql_cmnd = new SqlCommand(insertOrder, connection);
-                    sql_cmnd.Transaction = transaction;
-                    sql_cmnd.ExecuteNonQuery();
 
-                    string insertOrderJob = $"INSERT INTO [dbo].[OrdersJobs]" +
-                                            $"([Id]" +
-                                            $",[OrderId]" +
-                                            $",[IsConfirmed]" +
-                                            $",[IsCompleted]" +
-                                            $",[CreatedAt]" +
-                                            $",[AttachmentSizeInBytes]" +
-                                            $",[ExecutionTimeInSeconds])" +
-                                            $"VALUES" +
-                                            $"({order.Id}," +
-                                            $"{order.Id}," +
-                                            $"0," +
-                                            $"0," +
-                                            $"'{DateTime.Now.Date}'," +
-                                            $"{fileInfo.Length}," +
-                                            $"0)";
+                    insertOrderCommand.Transaction = transaction;
+                    insertOrderCommand.ExecuteNonQuery();
 
-                    sql_cmnd = new SqlCommand(insertOrderJob, connection);
-                    sql_cmnd.Transaction = transaction;
-                    sql_cmnd.ExecuteNonQuery();
+                    string insertOrderJob = Queries.InsertOrderJob;
+
+                    SqlCommand insertOrderJobCommand = new SqlCommand(insertOrderJob, connection);
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("Id", order.Id));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("OrderId", order.Id));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("IsConfirmed", "0"));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("IsCompleted", "0"));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("CreatedAt", DateTime.Now.Date));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("AttachmentSizeInBytes", fileInfo.Length));
+                    insertOrderJobCommand.Parameters.Add(new SqlParameter("ExecutionTimeInSeconds", "0"));
+
+
+                    insertOrderJobCommand.Transaction = transaction;
+                    insertOrderJobCommand.ExecuteNonQuery();
 
                     transaction.Commit();
                 }
