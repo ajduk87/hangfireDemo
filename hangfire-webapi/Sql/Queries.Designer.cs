@@ -77,5 +77,23 @@ namespace hangfire_webapi.Sql {
                 return ResourceManager.GetString("InsertOrderJob", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SELECT * FROM [OrdersDb].[dbo].[Orders] WHERE [Name] = @Name.
+        /// </summary>
+        internal static string selectOrderByFilename {
+            get {
+                return ResourceManager.GetString("selectOrderByFilename", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to UPDATE [dbo].[OrdersJobs] SET [IsConfirmed] = 1 WHERE [OrderId] = @OrderId.
+        /// </summary>
+        internal static string updateOrderJobByOrderId {
+            get {
+                return ResourceManager.GetString("updateOrderJobByOrderId", resourceCulture);
+            }
+        }
     }
 }

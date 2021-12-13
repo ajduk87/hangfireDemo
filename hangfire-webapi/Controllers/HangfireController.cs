@@ -91,12 +91,13 @@ namespace hangfire_webapi.Controllers
             {
                 connection.Open();
 
-                string selectOrderByFilename = $"SELECT *" +
-                                     $"FROM [OrdersDb].[dbo].[Orders]" +
-                                     $"WHERE [Name] = '{order.FileName}'";
+                string selectOrderByFilename = Queries.selectOrderByFilename;
 
-                SqlCommand sql_cmnd = new SqlCommand(selectOrderByFilename, connection);
-                SqlDataReader reader = sql_cmnd.ExecuteReader();
+                SqlCommand selectOrderByFilenameCommand = new SqlCommand(selectOrderByFilename, connection);
+                selectOrderByFilenameCommand.Parameters.Add(new SqlParameter("Name", order.FileName));
+
+
+                SqlDataReader reader = selectOrderByFilenameCommand.ExecuteReader();
 
                 if (reader.Read()) 
                 {
@@ -105,12 +106,12 @@ namespace hangfire_webapi.Controllers
 
                 reader.Close();
 
-                string updateOrderJobByOrderId = $"UPDATE [dbo].[OrdersJobs]" +
-                                                    $"SET [IsConfirmed] = 1" +
-                                                    $"WHERE [OrderId] = {id}";
+                string updateOrderJobByOrderId = Queries.updateOrderJobByOrderId;
 
-                sql_cmnd = new SqlCommand(updateOrderJobByOrderId, connection);
-                sql_cmnd.ExecuteNonQuery();
+                SqlCommand updateOrderJobByOrderIdCommand = new SqlCommand(updateOrderJobByOrderId, connection);
+                updateOrderJobByOrderIdCommand.Parameters.Add(new SqlParameter("OrderId", id));
+
+                updateOrderJobByOrderIdCommand.ExecuteNonQuery();
 
                 connection.Close();
             }

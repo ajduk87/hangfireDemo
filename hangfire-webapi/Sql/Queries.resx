@@ -123,4 +123,10 @@
   <data name="InsertOrderJob" xml:space="preserve">
     <value>INSERT INTO [dbo].[OrdersJobs]([Id],[OrderId],[IsConfirmed],[IsCompleted],[CreatedAt],[AttachmentSizeInBytes],[ExecutionTimeInSeconds])VALUES(@Id,@OrderId,@IsConfirmed,@IsCompleted,@CreatedAt,@AttachmentSizeInBytes,@ExecutionTimeInSeconds)</value>
   </data>
+  <data name="selectOrderByFilename" xml:space="preserve">
+    <value>SELECT * FROM [OrdersDb].[dbo].[Orders] WHERE [Name] = @Name</value>
+  </data>
+  <data name="updateOrderJobByOrderId" xml:space="preserve">
+    <value>UPDATE [dbo].[OrdersJobs] SET [IsConfirmed] = 1 WHERE [OrderId] = @OrderId</value>
+  </data>
 </root>
